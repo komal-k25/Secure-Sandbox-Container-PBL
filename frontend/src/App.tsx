@@ -5,6 +5,7 @@ import Features from './pages/Features';
 import Security from './pages/Security';
 import Contact from './pages/Contact';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Profile from './pages/Profile';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
             <Route path="/security" element={<Security />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/profile" element={<Profile />} />
           </Routes>
         </main>
@@ -28,3 +30,4 @@ function App() {
 }
 
 export default App;
+

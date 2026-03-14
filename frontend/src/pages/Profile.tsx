@@ -1,24 +1,17 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, LogOut, TerminalSquare } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 export default function Profile() {
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
-  const userEmail = localStorage.getItem('user_email') || 'user@example.com';
+  const { token, userEmail, logout } = useAuth();
 
   useEffect(() => {
     if (!token) {
       navigate('/login');
     }
   }, [token, navigate]);
-
-  const handleSignOut = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user_email');
-    window.dispatchEvent(new Event('storage'));
-    navigate('/');
-  };
 
   if (!token) return null; // Prevent flicker
 
@@ -34,7 +27,7 @@ export default function Profile() {
           </div>
           <div className="mt-4 flex md:ml-4 md:mt-0">
             <button
-              onClick={handleSignOut}
+              onClick={logout}
               className="ml-3 inline-flex items-center rounded-md bg-white dark:bg-slate-800 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 flex gap-2 transition-colors"
             >
               <LogOut className="h-4 w-4" />
@@ -49,7 +42,7 @@ export default function Profile() {
             <div className="px-4 py-5 sm:p-6">
               <h3 className="text-base font-semibold leading-6 text-gray-900 dark:text-white">User Profile</h3>
               <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                <p>Logged in as: <span className="font-medium text-gray-900 dark:text-white">{userEmail}</span></p>
+                <p>Logged in as: <span className="font-medium text-gray-900 dark:text-white">{userEmail || 'user@example.com'}</span></p>
               </div>
               
               <div className="mt-10">
