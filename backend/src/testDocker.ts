@@ -19,3 +19,5 @@ async function test() {
 }
 
 test();
+
+// npx ts-node src/testDocker.ts

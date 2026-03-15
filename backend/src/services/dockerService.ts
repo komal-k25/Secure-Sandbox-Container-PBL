@@ -46,7 +46,7 @@ export async function createDockerContainer(vmId: number, vmName: string) {
     await execAsync(`docker-compose -f "${filePath}" -p "vm_${vmId}" up -d`);
     const realLink = `http://localhost:${novncPort + 200}/vnc.html`;
 
-    return { port: novncPort, containerName, realLink };
+    return { port: novncPort, containerName, link: realLink };
 }
 
 export async function stopDockerContainer(vmId: number) {
