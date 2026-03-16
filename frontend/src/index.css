@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-blue: #0069ff; /* DigitalOcean primary blue */
-  --color-brand-dark: #031b4e; /* DigitalOcean deep blue text */
-  --color-brand-light: #f9fbfd; /* Very light blue/gray background */
+  --color-brand-blue: #0069ff;
+  --color-brand-dark: #031b4e;
+  --color-brand-light: #f9fbfd;
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -12,4 +12,144 @@
   body {
     @apply bg-brand-light dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans transition-colors duration-200;
   }
+}
+
+/* ─── Keyframes ─── */
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-8px); }
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%      { transform: translateY(-14px) rotate(3deg); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(0,105,255,0.15); }
+  50%      { box-shadow: 0 0 20px rgba(0,105,255,0.3); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes borderGlow {
+  0%, 100% { border-color: rgba(0,105,255,0.15); }
+  50%      { border-color: rgba(0,105,255,0.4); }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes rotateIn {
+  from { opacity: 0; transform: rotate(-12deg) scale(0.8); }
+  to   { opacity: 1; transform: rotate(0deg) scale(1); }
+}
+
+@keyframes ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ─── Utility Animation Classes ─── */
+
+.animate-fade-in-up    { animation: fadeInUp 0.5s ease-out both; }
+.animate-scale-in      { animation: scaleIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both; }
+.animate-shimmer       { background-size: 200% 200%; animation: shimmer 6s ease infinite; }
+.animate-float         { animation: float 4s ease-in-out infinite; }
+.animate-float-slow    { animation: floatSlow 6s ease-in-out infinite; }
+.animate-pulse-glow    { animation: pulseGlow 2.5s ease-in-out infinite; }
+.animate-slide-down    { animation: slideDown 0.35s ease-out both; }
+.animate-border-glow   { animation: borderGlow 3s ease-in-out infinite; }
+.animate-count-up      { animation: countUp 0.4s ease-out both; }
+.animate-slide-in-left { animation: slideInLeft 0.6s ease-out both; }
+.animate-slide-in-right{ animation: slideInRight 0.6s ease-out both; }
+.animate-rotate-in     { animation: rotateIn 0.5s ease-out both; }
+
+/* Stagger delays */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.12s; }
+.stagger-3 { animation-delay: 0.19s; }
+.stagger-4 { animation-delay: 0.26s; }
+.stagger-5 { animation-delay: 0.33s; }
+
+/* Glassmorphism */
+.glass {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+/* Mesh gradients */
+.mesh-gradient {
+  background: linear-gradient(135deg, #0069ff 0%, #6366f1 30%, #8b5cf6 55%, #0069ff 100%);
+  background-size: 200% 200%;
+  animation: shimmer 8s ease infinite;
+}
+.mesh-gradient-dark {
+  background: linear-gradient(135deg, #0c1929 0%, #1e1b4b 30%, #1a1040 55%, #0c2340 100%);
+  background-size: 200% 200%;
+  animation: shimmer 8s ease infinite;
+}
+
+/* Section reveal (used by IntersectionObserver) */
+.reveal-section {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+}
+.reveal-section.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #0069ff, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card hover glow */
+.card-glow {
+  transition: box-shadow 0.4s ease, transform 0.3s ease;
+}
+.card-glow:hover {
+  box-shadow: 0 8px 30px rgba(0,105,255,0.12);
+  transform: translateY(-4px);
 }
