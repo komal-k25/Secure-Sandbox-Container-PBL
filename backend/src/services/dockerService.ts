@@ -7,13 +7,19 @@ import yaml from "js-yaml";
 const execAsync = util.promisify(exec);
 const COMPOSE_FILES_DIR = path.resolve(__dirname, "../../vm-compose-files");
 
-export async function createDockerContainer(vmId: number, vmName: string) {
-    // 1. Create a unique port for the web-desktop (noVNC)
-    // If vmId is 1, port is 6081. If vmId is 2, port is 6082.
-    const novncPort = 6080 + vmId;
-    const containerName = `ssem-vm-${vmId}`;
+// Change: Ensure we use vmCount to create unique offsets
+export async function createDockerContainer(userId: number, vmName: string, vmCount: number) {
 
-    // 2. This is the "Blueprint" for the VM
+    // 1. Create a truly unique port and name
+    // If User 3 has 0 VMs, port is 6280. If they have 1 VM, port is 6281.
+    const portOffset = userId + vmCount;
+    const novncPort = 6280 + portOffset;
+
+    // Unique name prevents Docker "Name already in use" errors
+    const containerName = `ssem-vm-u${userId}-n${vmCount}`;
+    const projectName = `vm_u${userId}_n${vmCount}`;
+
+    // 2. Updated Blueprint
     const composeConfig = {
         version: "3.8",
         services: {
@@ -21,8 +27,8 @@ export async function createDockerContainer(vmId: number, vmName: string) {
                 image: "accetto/ubuntu-vnc-xfce-g3",
                 container_name: containerName,
                 ports: [
-                    // We map both 6080 and 6901 just to be safe
-                    `0.0.0.0:${novncPort + 200}:6901`
+                    // Mapping to the calculated unique port
+                    `0.0.0.0:${novncPort}:6901`
                 ],
                 environment: [
                     "VNC_PW=password",
@@ -34,32 +40,51 @@ export async function createDockerContainer(vmId: number, vmName: string) {
         },
     };
 
-    // 3. Convert that Blueprint into a real .yml file
+    // 3. Save unique .yml file
     const yamlStr = yaml.dump(composeConfig);
-    const filePath = path.join(COMPOSE_FILES_DIR, `docker-compose.vm-${vmId}.yml`);
+    const filePath = path.join(COMPOSE_FILES_DIR, `docker-compose.${projectName}.yml`);
 
     await fs.mkdir(COMPOSE_FILES_DIR, { recursive: true });
     await fs.writeFile(filePath, yamlStr);
 
-    // 4. Tell Docker to start the VM using that file
-    // -p sets a unique project name so VMs don't overlap
-    await execAsync(`docker-compose -f "${filePath}" -p "vm_${vmId}" up -d`);
-    const realLink = `http://localhost:${novncPort + 200}/vnc.html`;
+    // 4. Start Docker
+    await execAsync(`docker-compose -f "${filePath}" -p "${projectName}" up -d`);
 
-    return { port: novncPort, containerName, link: realLink };
+    // The link now uses the correctly mapped port
+    const realLink = `http://localhost:${novncPort}/vnc.html?autoconnect=true`;
+
+    return {
+        port: novncPort,
+        containerName,
+        link: realLink
+    };
 }
 
-export async function stopDockerContainer(vmId: number) {
-    const filePath = path.join(COMPOSE_FILES_DIR, `docker-compose.vm-${vmId}.yml`);
-    await execAsync(`docker-compose -f "${filePath}" -p "vm_${vmId}" stop`);
+export async function startDockerContainer(userId: number, vmCount: number) {
+    const projectName = `vm_u${userId}_n${vmCount}`;
+    const filePath = path.join(COMPOSE_FILES_DIR, `docker-compose.${projectName}.yml`);
+
+    // Starts the existing container defined in the yml
+    await execAsync(`docker-compose -f "${filePath}" -p "${projectName}" start`);
 }
 
-export async function removeDockerContainer(vmId: number) {
-    const filePath = path.join(COMPOSE_FILES_DIR, `docker-compose.vm-${vmId}.yml`);
+export async function stopDockerContainer(userId: number, vmCount: number) {
+    const projectName = `vm_u${userId}_n${vmCount}`;
+    const filePath = path.join(COMPOSE_FILES_DIR, `docker-compose.${projectName}.yml`);
 
-    // Stops the VM and wipes the temporary container data
-    await execAsync(`docker-compose -f "${filePath}" -p "vm_${vmId}" down`);
+    // Stops the running container
+    await execAsync(`docker-compose -f "${filePath}" -p "${projectName}" stop`);
+}
 
-    // Deletes the instruction file so your folder doesn't get messy
-    await fs.unlink(filePath);
+export async function removeDockerContainer(userId: number, vmCount: number) {
+    const projectName = `vm_u${userId}_n${vmCount}`;
+    const filePath = path.join(COMPOSE_FILES_DIR, `docker-compose.${projectName}.yml`);
+
+    // 'down' stops and removes the container and network
+    await execAsync(`docker-compose -f "${filePath}" -p "${projectName}" down`);
+
+    // Delete the physical yml file
+    if (await fs.stat(filePath).catch(() => false)) {
+        await fs.unlink(filePath);
+    }
 }

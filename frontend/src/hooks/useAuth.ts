@@ -41,43 +41,33 @@ export function useAuth(): UseAuthReturn {
     setError(null);
 
     try {
-      // ── Attempt real API call ──
       const res = await fetch(`${API_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.message || 'Invalid email or password');
+        throw new Error(data?.error || data?.message || 'Invalid email or password');
       }
 
-      const data = await res.json();
-      const token = data.token as string;
-      const username = data.username as string || '';
+      // Backend should return { token, username, email }
+      const { token, username } = data;
 
       localStorage.setItem('token', token);
       localStorage.setItem('user_email', email);
       if (username) localStorage.setItem('username', username);
+
+      // Trigger update across tabs/components
       window.dispatchEvent(new Event('storage'));
 
       setAuthState({ token, userEmail: email, username });
       navigate('/profile');
     } catch (err: any) {
-      // ── Fallback: If the backend is not yet running, simulate login ──
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        console.warn('[useAuth] Backend unreachable — using simulated login');
-        const fakeToken = 'simulated_jwt_' + Date.now();
-        localStorage.setItem('token', fakeToken);
-        localStorage.setItem('user_email', email);
-        
-        window.dispatchEvent(new Event('storage'));
-        setAuthState({ token: fakeToken, userEmail: email, username: null });
-        navigate('/profile');
-      } else {
-        setError(err.message || 'Login failed. Please try again.');
-      }
+      console.error('[useAuth] Login error:', err.message);
+      setError(err.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -94,34 +84,25 @@ export function useAuth(): UseAuthReturn {
         body: JSON.stringify({ username, email, password }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.message || 'Registration failed');
+        throw new Error(data?.error || data?.message || 'Registration failed');
       }
 
-      const data = await res.json();
-      const token = data.token as string;
+      const { token } = data;
 
       localStorage.setItem('token', token);
       localStorage.setItem('user_email', email);
       localStorage.setItem('username', username);
+
       window.dispatchEvent(new Event('storage'));
 
       setAuthState({ token, userEmail: email, username });
       navigate('/profile');
     } catch (err: any) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        console.warn('[useAuth] Backend unreachable — using simulated register');
-        const fakeToken = 'simulated_jwt_' + Date.now();
-        localStorage.setItem('token', fakeToken);
-        localStorage.setItem('user_email', email);
-        localStorage.setItem('username', username);
-        window.dispatchEvent(new Event('storage'));
-        setAuthState({ token: fakeToken, userEmail: email, username });
-        navigate('/profile');
-      } else {
-        setError(err.message || 'Registration failed. Please try again.');
-      }
+      console.error('[useAuth] Registration error:', err.message);
+      setError(err.message || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -131,6 +112,9 @@ export function useAuth(): UseAuthReturn {
     localStorage.removeItem('token');
     localStorage.removeItem('user_email');
     localStorage.removeItem('username');
+    // Important: Clear local simulated VMs too so they don't leak between users
+    localStorage.removeItem('ssem_simulated_vms');
+
     window.dispatchEvent(new Event('storage'));
     setAuthState({ token: null, userEmail: null, username: null });
     navigate('/');
