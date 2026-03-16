@@ -7,13 +7,14 @@ export interface VM {
   name: string;
   status: 'running' | 'stopped';
   port: number;
+  vnc_link: string;
   created_at: string;
 }
 
 interface UseVMsReturn {
   vms: VM[];
   isLoading: boolean;
-  actionLoading: number | null; // VM id currently being acted on
+  actionLoading: number | null;
   error: string | null;
   canCreate: boolean;
   fetchVMs: () => Promise<void>;
@@ -22,21 +23,6 @@ interface UseVMsReturn {
   stopVM: (id: number) => Promise<void>;
   deleteVM: (id: number) => Promise<void>;
   clearError: () => void;
-}
-
-const STORAGE_KEY = 'ssem_simulated_vms';
-
-function getSimulatedVMs(): VM[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveSimulatedVMs(vms: VM[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(vms));
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -54,10 +40,21 @@ export function useVMs(): UseVMsReturn {
   const [error, setError] = useState<string | null>(null);
 
   const clearError = useCallback(() => setError(null), []);
-
   const canCreate = vms.length < 3;
 
-  // ── Fetch VMs ──
+  /**
+   * Helper to handle response parsing safely.
+   * Prevents "Unexpected token <" error by checking content-type.
+   */
+  const handleResponse = async (res: Response) => {
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    return { error: `Server returned ${res.status}: Not a JSON response` };
+  };
+
+  // ── 1. Fetch VMs ──
   const fetchVMs = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -65,29 +62,35 @@ export function useVMs(): UseVMsReturn {
       const res = await fetch(`${API_BASE}/vms`, {
         headers: getAuthHeaders(),
       });
-      if (!res.ok) throw new Error('Failed to fetch VMs');
-      const data = await res.json();
-      const mapped: VM[] = (data.vms || data).map((vm: any) => ({
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch VMs (Status: ${res.status})`);
+      }
+
+      const data = await handleResponse(res);
+
+      const vmsData = data.vms || data;
+      if (!Array.isArray(vmsData)) {
+        throw new Error(data.error || "Invalid data format received");
+      }
+
+      const mapped: VM[] = vmsData.map((vm: any) => ({
         id: vm.id,
         name: vm.name,
         status: vm.status,
-        port: vm.novnc_port || vm.port,
+        port: vm.vnc_port,
+        vnc_link: vm.vnc_link,
         created_at: vm.created_at,
       }));
       setVMs(mapped);
     } catch (err: any) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        console.warn('[useVMs] Backend unreachable — using simulated data');
-        setVMs(getSimulatedVMs());
-      } else {
-        setError(err.message || 'Failed to fetch VMs');
-      }
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // ── Create VM ──
+  // ── 2. Create VM ──
   const createVM = useCallback(async (name: string) => {
     if (vms.length >= 3) {
       setError('Maximum limit of 3 VMs reached.');
@@ -101,88 +104,44 @@ export function useVMs(): UseVMsReturn {
         headers: getAuthHeaders(),
         body: JSON.stringify({ name }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.message || 'Failed to create VM');
-      }
+
+      const data = await handleResponse(res);
+      if (!res.ok) throw new Error(data.error || 'Failed to create VM');
+
       await fetchVMs();
     } catch (err: any) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        console.warn('[useVMs] Backend unreachable — simulating VM creation');
-        const newVM: VM = {
-          id: Date.now(),
-          name,
-          status: 'running',
-          port: 6080 + vms.length + 1,
-          created_at: new Date().toISOString(),
-        };
-        const updated = [...getSimulatedVMs(), newVM];
-        saveSimulatedVMs(updated);
-        setVMs(updated);
-      } else {
-        setError(err.message || 'Failed to create VM');
-      }
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
-  }, [vms, fetchVMs]);
+  }, [vms.length, fetchVMs]);
 
-  // ── Start VM ──
-  const startVM = useCallback(async (id: number) => {
+  // ── 3. Status Update ──
+  const updateStatus = useCallback(async (id: number, newStatus: 'running' | 'stopped') => {
     setActionLoading(id);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/vms/${id}/status`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ status: 'running' }),
+        body: JSON.stringify({ status: newStatus }),
       });
-      if (!res.ok) throw new Error('Failed to start VM');
+
+      const data = await handleResponse(res);
+      if (!res.ok) throw new Error(data.error || `Failed to ${newStatus} VM`);
+
       await fetchVMs();
     } catch (err: any) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        const stored = getSimulatedVMs().map((vm) =>
-          vm.id === id ? { ...vm, status: 'running' as const } : vm
-        );
-        saveSimulatedVMs(stored);
-        setVMs(stored);
-      } else {
-        setError(err.message || 'Failed to start VM');
-      }
+      setError(err.message);
     } finally {
       setActionLoading(null);
     }
   }, [fetchVMs]);
 
-  // ── Stop VM ──
-  const stopVM = useCallback(async (id: number) => {
-    setActionLoading(id);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/vms/${id}/status`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ status: 'stopped' }),
-      });
-      if (!res.ok) throw new Error('Failed to stop VM');
-      await fetchVMs();
-    } catch (err: any) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        const stored = getSimulatedVMs().map((vm) =>
-          vm.id === id ? { ...vm, status: 'stopped' as const } : vm
-        );
-        saveSimulatedVMs(stored);
-        setVMs(stored);
-      } else {
-        setError(err.message || 'Failed to stop VM');
-      }
-    } finally {
-      setActionLoading(null);
-    }
-  }, [fetchVMs]);
-
-  // ── Delete VM ──
+  // ── 4. Delete VM ──
   const deleteVM = useCallback(async (id: number) => {
+    if (!window.confirm("Are you sure? This will permanently delete the container.")) return;
+
     setActionLoading(id);
     setError(null);
     try {
@@ -190,22 +149,18 @@ export function useVMs(): UseVMsReturn {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
-      if (!res.ok) throw new Error('Failed to delete VM');
+
+      const data = await handleResponse(res);
+      if (!res.ok) throw new Error(data.error || 'Failed to delete VM');
+
       await fetchVMs();
     } catch (err: any) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        const stored = getSimulatedVMs().filter((vm) => vm.id !== id);
-        saveSimulatedVMs(stored);
-        setVMs(stored);
-      } else {
-        setError(err.message || 'Failed to delete VM');
-      }
+      setError(err.message);
     } finally {
       setActionLoading(null);
     }
   }, [fetchVMs]);
 
-  // Auto-fetch on mount
   useEffect(() => {
     fetchVMs();
   }, [fetchVMs]);
@@ -218,8 +173,8 @@ export function useVMs(): UseVMsReturn {
     canCreate,
     fetchVMs,
     createVM,
-    startVM,
-    stopVM,
+    startVM: (id: number) => updateStatus(id, 'running'),
+    stopVM: (id: number) => updateStatus(id, 'stopped'),
     deleteVM,
     clearError,
   };
