@@ -8,6 +8,8 @@ import Contact from './pages/Contact';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
+import ChatBot from './components/ChatBot';
+
 
 function App() {
   return (
@@ -26,7 +28,9 @@ function App() {
           </Routes>
         </main>
         <Footer />
+        <ChatBot />
       </div>
+
     </BrowserRouter>
   );
 }

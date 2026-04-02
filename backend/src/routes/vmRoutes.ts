@@ -36,16 +36,28 @@ router.post('/vms', authenticateToken, async (req: any, res: any) => {
         }
 
         // Check limit (Max 3)
-        const [rows]: any = await pool.execute(
-            'SELECT COUNT(*) as vmCount FROM virtual_machines WHERE user_id = ?',
+        const [vms]: any = await pool.execute(
+            'SELECT container_id FROM virtual_machines WHERE user_id = ?',
             [userID]
         );
-        if (rows[0].vmCount >= 3) {
+
+        if (vms.length >= 3) {
             return res.status(403).json({ error: 'Limit reached. Max 3 VMs allowed.' });
         }
 
+        // Find lowest available index (to avoid collision after deletions)
+        const usedIndexes = vms.map((vm: any) => {
+            const match = vm.container_id ? vm.container_id.match(/-n(\d+)$/) : null;
+            return match ? parseInt(match[1], 10) : -1;
+        });
+
+        let availableIndex = 0;
+        while (usedIndexes.includes(availableIndex)) {
+            availableIndex++;
+        }
+
         // 1. TRIGGER THE DOCKER MAGIC
-        const dockerVM = await createDockerContainer(userID, name, rows[0].vmCount);
+        const dockerVM = await createDockerContainer(userID, name, availableIndex);
 
         // 2. ALIGN WITH YOUR DATABASE SCHEMA
         // Note: Column names must match: user_id, name, status, vnc_port, container_id, vnc_link
@@ -91,9 +103,10 @@ router.put('/vms/:id/status', authenticateToken, async (req: any, res: any) => {
 
         const vm = vms[0];
 
-        // IMPORTANT: You need to know which container index this is (0, 1, or 2)
-        // For now, I'll leave it as 0, but you should fetch this from your DB
-        const vmIndex = vm.vm_index || 0;
+        // Extract the original vmCount/vmIndex from the container_id
+        // container_id is formatted as 'ssem-vm-u${userId}-n${vmCount}'
+        const vmIndexMatch = vm.container_id ? vm.container_id.match(/-n(\d+)$/) : null;
+        const vmIndex = vmIndexMatch ? parseInt(vmIndexMatch[1], 10) : 0;
 
         if (status === 'running') {
             await startDockerContainer(userId, vmIndex);
@@ -128,7 +141,10 @@ router.delete('/vms/:id', authenticateToken, async (req: any, res: any) => {
         if (vms.length === 0) return res.status(404).json({ error: "VM not found" });
 
         const vm = vms[0];
-        const vmIndex = vm.vm_index || 0;
+        
+        // Extract the original vmCount/vmIndex from the container_id
+        const vmIndexMatch = vm.container_id ? vm.container_id.match(/-n(\d+)$/) : null;
+        const vmIndex = vmIndexMatch ? parseInt(vmIndexMatch[1], 10) : 0;
 
         await removeDockerContainer(userId, vmIndex);
         await pool.execute('DELETE FROM virtual_machines WHERE id = ?', [vmId]);
